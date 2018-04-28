@@ -1,0 +1,57 @@
+---
+title: "Taxonomic Classification Using R"
+output: html_document
+---
+
+Gather OTU
+```{r}
+library(devtools)
+library(rBLAST)
+download.file("ftp://ftp.ncbi.nlm.nih.gov/blast/db/16SMicrobial.tar.gz", "16SMicrobial.tar.gz", mode='wb')
+untar("16SMicrobial.tar.gz", exdir="16SMicrobialDB")
+```
+
+```{r}
+library(annotate)
+library(ape)
+library(seqinr)
+library(Biostrings)
+library(devtools)
+
+OTU <- read.csv("~/Documents/Occidental College/Research Group/Second Round PCA/OTU_Barcode.csv", header = TRUE, row.names = 1)
+seq = OTU$repseq 
+names(seq) = OTU$id 
+dna = DNAStringSet(seq) 
+writeXStringSet(dna, "foo.fasta") #Convert CSV to Fasta file "Name"
+seq1 <- readDNAStringSet("~/Documents/Occidental College/Research Group/Second Round PCA/foo.fasta")
+bl <- blast(db="~/Downloads/16SMicrobialDB/16SMicrobial")
+
+blastfun <- function(i){
+  cl <- predict(bl, seq1[i,])
+  cl.out <- cl[1,]
+  }
+
+blastfun.out <- lapply(1:length(seq1), blastfun) #Here, it should be reading the sequences and BLASTing them. 
+blastfun.out1 <- as.data.frame(do.call(rbind, blastfun.out)) #Bind them together
+
+blastfun.out1$SubjectID <- as.character(blastfun.out1$SubjectID)
+blastfun.out1$SubjectID[is.na(blastfun.out1$SubjectID)] <- "NoTaxa"
+blastfun.out1$SubjectID <- as.factor(blastfun.out1$SubjectID)
+
+#https://cran.r-project.org/web/packages/taxonomizr/README.html (In case you need help)
+
+library(taxonomizr)
+library(R.oo)
+#This next chunk only needs to be run once. It will download large files, so give it some time.
+#getNamesandNodes() #Download Names and Nodes from NCBI 
+#getAccession2taxid() #Big Download
+#read.accession2taxid(list.files('.','accession2taxid.gz$'),'accessionTaxa.sql') Easily Accessible Form
+
+taxaNodes<-read.nodes('nodes.dmp') #Assign
+taxaNames<-read.names('names.dmp') #Assign
+taxaId<-accessionToTaxa(blastfun.out1$SubjectID,"accessionTaxa.sql") #Here is where you need to tie together you data with the database so it can match everything. Indicate the column with the denovo. 
+print(taxaId)
+taxaID <- getTaxonomy(taxaId,taxaNodes,taxaNames)
+
+OTU.results <- cbind(OTU, taxaID) #Bind the original dataset with OTU w/the clasifications to make it presentable
+```

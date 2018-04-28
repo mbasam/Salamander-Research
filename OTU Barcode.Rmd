@@ -1,0 +1,334 @@
+---
+title: "Salamander Microbiome"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("seqinr")
+library(vegan)
+library(ggrepel)
+```
+
+Insert Dataset
+```{r}
+## Run with old samples
+#OTU <- read.csv("~/Documents/Occidental College/Research Group/OTU Barcode.csv", header = TRUE, row.names=1)
+#OTU <- read.csv("~/Google Drive File Stream/Team Drives/Salamander Research/Genome Sequencing/OTU Barcode.csv", header = TRUE, row.names=1)
+#OTU.t <- t(OTU)
+
+## Run with new samples
+OTU <- read.table("~/Downloads/Salamander_OTU_table_wTaxa_wSeqs.txt", header = TRUE, row.names=1, sep="\t")
+#print(OTU)
+OTU.sub <-OTU[,1:10]
+OTU.t <- t(OTU.sub)
+#print(OTU1.t)o
+
+Factors <- read.csv("~/Downloads/Factors.csv", header = TRUE, row.names=1)
+```
+
+Principle Components Analysis
+```{r}
+OTU.pca <- prcomp(OTU.t, scale = T)
+#print(OTU.pca)
+#will tell us how many PC axes are important
+summary(OTU.pca)
+#plot(OTU.pca)
+```
+
+Gather OTU
+```{r}
+library(devtools)
+library(rBLAST)
+download.file("ftp://ftp.ncbi.nlm.nih.gov/blast/db/16SMicrobial.tar.gz", "16SMicrobial.tar.gz", mode='wb')
+untar("16SMicrobial.tar.gz", exdir="16SMicrobialDB")
+```
+
+```{r}
+library(annotate)
+library(ape)
+library(seqinr)
+library(Biostrings)
+library(devtools)
+library(rBLAST)
+OTU <- read.csv("~/Documents/Occidental College/Research Group/Second Round PCA/OTU_Barcode.csv", header = TRUE, row.names = 1)
+seq = OTU$repseq 
+names(seq) = OTU$id 
+dna = DNAStringSet(seq) 
+writeXStringSet(dna, "foo.fasta")
+seq1 <- readDNAStringSet("~/Documents/Occidental College/Research Group/Second Round PCA/foo.fasta")
+bl <- blast(db="~/Downloads/16SMicrobialDB/16SMicrobial")
+
+blastfun <- function(i){
+cl <- predict(bl, seq1[i,])
+cl.out <- cl[1,]
+}
+
+blastfun.out <- lapply(1:length(seq1), blastfun) #Apply Taxonomic Classification for Each OTU Barcode
+blastfun.out1 <- as.data.frame(do.call(rbind, blastfun.out)) 
+
+blastfun.out1$SubjectID <- as.character(blastfun.out1$SubjectID)
+blastfun.out1$SubjectID[is.na(blastfun.out1$SubjectID)] <- "NoTaxa"
+blastfun.out1$SubjectID <- as.factor(blastfun.out1$SubjectID)
+
+#https://cran.r-project.org/web/packages/taxonomizr/README.html
+library(taxonomizr)
+library(R.oo)
+#getNamesandNodes() #Download Names and Nodes from NCBI Only repeat for updates
+#getAccession2taxid() #Big Download
+#read.accession2taxid(list.files('.','accession2taxid.gz$'),'accessionTaxa.sql') Easily Accessible Form
+taxaNodes<-read.nodes('nodes.dmp')
+taxaNames<-read.names('names.dmp')
+taxaId<-accessionToTaxa(blastfun.out1$SubjectID,"accessionTaxa.sql")
+print(taxaId)
+taxaID <- getTaxonomy(taxaId,taxaNodes,taxaNames)
+
+OTU.results <- cbind(OTU, taxaID) #Bind them together
+```
+
+```{r}
+#will tell us which microbial species are most important for each axis
+print(round(OTU.pca$rotation,5))
+```
+
+Find which bacteria are driving the PCA
+```{r}
+names <- rownames(OTU.results)
+OTU.results.correct <- cbind(names, OTU.results)
+rotation <- data.frame(OTU.pca$rotation)
+
+pc1.top <- rotation[order(rotation$PC1)[c((nrow(rotation)-20):nrow(rotation))],]
+pc1.top <- data.frame(Names = rownames(pc1.top), PC1 = pc1.top$PC1)
+print(pc1.top)
+OTU.results.1.sub <- OTU.results.correct[c(pc1.top$Names),]
+
+pc2.top <- rotation[order(rotation$PC2)[c(1:10, (nrow(rotation)-9):nrow(rotation))],]
+pc2.top <- data.frame(Names = rownames(pc2.top), PC2 = pc2.top$PC2)
+print(pc2.top)
+OTU.results.2.sub <- OTU.results.correct$names[c(pc2.top$Names),]
+OTU.results.2.sub <- OTU.results.correct[OTU.results.correct$names%in% c(pc2.top$Names),]
+
+pc3.top <- rotation[order(rotation$PC3)[c(1:10, (nrow(rotation)-9):nrow(rotation))],]
+pc3.top <- data.frame(Names = rownames(pc3.top), PC3 = pc3.top$PC3)
+print(pc3.top)
+OTU.results.3.sub <- OTU.results.correct[c(pc3.top$Names),]
+
+pc4.top <- rotation[order(rotation$PC4)[c(1:10, (nrow(rotation)-9):nrow(rotation))],]
+pc4.top <- data.frame(Names = rownames(pc4.top), PC4 = pc4.top$PC4)
+print(pc4.top)
+OTU.results.4.sub <- OTU.results.correct[c(pc4.top$Names),]
+
+pc5.top <- rotation[order(rotation$PC5)[c(1:10, (nrow(rotation)-9):nrow(rotation))],]
+pc5.top <- data.frame(Names = rownames(pc5.top), PC5 = pc5.top$PC5)
+print(pc5.top)
+OTU.results.5.sub <- OTU.results.correct[c(pc5.top$Names),]
+
+pc6.top <- rotation[order(rotation$PC6)[c(1:10, (nrow(rotation)-9):nrow(rotation))],]
+pc6.top <- data.frame(Names = rownames(pc6.top), PC6 = pc6.top$PC6)
+print(pc6.top)
+OTU.results.6.sub <- OTU.results.correct[c(pc6.top$Names),]
+
+```
+
+
+```{r}
+#predict PC values for each individual sample
+pca.predict <- data.frame(predict(OTU.pca))
+pca.predict <- cbind(Factors, pca.predict)
+pca.predict$Label <- row.names(pca.predict)
+pca.predict$Label[pca.predict$Label == "Mudaser-Bb-3.1"] <- "B.N.6.2"
+pca.predict$Label[pca.predict$Label == "Mudaser-Bb-9.1"] <- "B.N.9.1"
+pca.predict$Label[pca.predict$Label == "Mudaser-Bb-9.2"] <- "B.N.9.2"
+pca.predict$Label[pca.predict$Label == "MB-Bn3.2"] <- "B.N.3.2"
+pca.predict$Label[pca.predict$Label == "Mudaser-soil-9.2"] <- "B.N.9.2 Soil"
+
+
+pc12 <- ggplot(data=pca.predict, aes(x=PC1, y=PC2, color=Species, shape=Type))+
+  geom_point(size=5)+
+  theme_classic()+
+  scale_color_manual(name="Species", 
+                      breaks=c("Batrachoseps nigriventris", "Taricha torosa", "unkn"), 
+                      labels=c("Batrachoseps nigriventris", "Taricha torosa", "Unknown"),
+                     values=c("aquamarine3", "hotpink2", "mediumorchid3"))+
+  scale_shape_discrete(name="Sample Type", 
+                       breaks=c("Amph", "Soil"),
+                       labels=c("Amphibian swab", "Soil sample"))+
+  #labs(title="Differences Between Species")+
+  theme(text = element_text(size=18), legend.title = element_text(size=12, face="bold"), legend.text=element_text(size=10))
+
+pc12
+ggsave("~/Documents/Occidental College/Research Group/Second Round PCA/PC12_Optimized.jpg", height=5, width=7, dpi=1000, units="in")
+#Fix Font Sizes!!!!!!! Remove Labels for all 
+```
+
+```{r, echo=FALSE} 
+#Don't Run
+pc34 <- ggplot(data=pca.predict, aes(x=PC3, y=PC4, color=Species, shape=Type))+
+  geom_point(size=5)+
+  theme_minimal()+
+  scale_color_discrete(name="Species", 
+                      breaks=c("Batrachoseps nigriventris", "Taricha torosa", "unkn"), 
+                      labels=c("Batrachoseps nigriventris", "Taricha torosa", "Unknown"))+
+  scale_shape_discrete(name="Sample Type", 
+                       breaks=c("Amph", "Soil"),
+                       labels=c("Amphibian swab", "Soil sample"))+
+  labs(title="Differences Between Locations")+
+  theme(text = element_text(size=15), legend.title = element_text(size=12, face="bold"), legend.text=element_text(size=10))
+
+pc34
+ggsave("~/Google Drive File Stream/Team Drives/Salamander Research/Genome Sequencing/pc34.jpg", height=5, width=7, dpi=1000, units="in")
+```
+
+```{r}
+pc34 <- ggplot(data=subset(pca.predict, Species == "Batrachoseps nigriventris"), aes(x=PC3, y=PC4))+
+  #stat_ellipse(aes(linetype=Type))+
+  #geom_text_repel(aes(color=Site), force = 15, segment.color="grey80") +
+  geom_point(aes(color=Site, shape=Type), size=5)+
+  #geom_text(size=10)+
+  theme_classic()+
+  scale_color_manual(name="Site", 
+                      breaks=c("Arroyo Seco Sk8", "Millard Canyon", "Switzer"), 
+                      labels=c("Skate Park", "Millard Canyon", "Switzer Falls"),
+                      values=c("aquamarine", "aquamarine3", "aquamarine4"))+
+  scale_shape_discrete(name="Sample Type", 
+                       breaks=c("Amph", "Soil"),
+                       labels=c("Amphibian swab", "Soil sample"))+
+  #labs(title="Differences Between Locations")+
+  theme(text = element_text(size=18), legend.title = element_text(size=12, face="bold"), legend.text=element_text(size=10))
+
+pc34
+ggsave("~/Documents/Occidental College/Research Group/Second Round PCA/PC34Bani_Optimized.jpg", height=5, width=7, dpi=1000, units="in")
+```
+
+```{r}
+pc56 <- ggplot(data=pca.predict, aes(x=PC5, y=PC6, color=Species))+
+  geom_point(size=5)+
+  theme_classic()+
+  scale_color_discrete(name="Species", 
+                      breaks=c("Batrachoseps nigriventris", "Taricha torosa", "unkn"), 
+                      labels=c("Batrachoseps nigriventris", "Taricha torosa", "Hot Creek"))+
+  labs(title="Differences Between Locations")+
+  theme(text = element_text(size=10), legend.title = element_text(size=10, face="bold"), legend.text=element_text(size=9))
+  
+pc56
+ggsave
+```
+
+
+
+Create Stacked Barplot for each Sample with Taxonomic Data
+```{r}
+#Use OTU.results as full dataset now including accession numbers and classification
+Phylum <- aggregate(list(OTU.results$HotCreek_tadpole, OTU.results$HotCreek_adult, OTU.results$MB.TT3.1, OTU.results$MB.TT3.3, OTU.results$MB.BN3.2, OTU.results$MB.BN3.1, OTU.results$MB.BN9.2, OTU.results$MB.B.N6.2, OTU.results$MB.BN9.1, OTU.results$MB.BN.S.9.2), by = list(Category=OTU.results$phylum), FUN=sum)
+names(Phylum) <- c("Phylum","HotCreek_t", "HotCreek_a", "T.T.3.1", "T.T.3.3", "B.N.3.2", "B.N.3.1", "B.N.9.2", "B.N.6.2", "B.N.9.1", "B.N.9.2.S")
+Phylum.t <- t(Phylum)
+
+#Aggregate Class
+Class <- aggregate(list(OTU.results$HotCreek_tadpole, OTU.results$HotCreek_adult, OTU.results$MB.TT3.1, OTU.results$MB.TT3.3, OTU.results$MB.BN3.2, OTU.results$MB.BN3.1, OTU.results$MB.BN9.2, OTU.results$MB.B.N6.2, OTU.results$MB.BN9.1, OTU.results$MB.BN.S.9.2), by = list(Category=OTU.results$class), FUN=sum)
+names(Class) <- c("Class","HotCreek_t", "HotCreek_a", "T.T.3.1", "T.T.3.3", "B.N.3.2", "B.N.3.1", "B.N.9.2", "B.N.6.2", "B.N.9.1", "B.N.9.2.S")
+
+#Aggregate Genus
+Genus <-aggregate(list(OTU.results$HotCreek_tadpole, OTU.results$HotCreek_adult, OTU.results$MB.TT3.1, OTU.results$MB.TT3.3, OTU.results$MB.BN3.2, OTU.results$MB.BN3.1, OTU.results$MB.BN9.2, OTU.results$MB.B.N6.2, OTU.results$MB.BN9.1, OTU.results$MB.BN.S.9.2), by = list(Category=OTU.results$genus), FUN=sum)
+names(Genus) <- c("Genus","HotCreek_t", "HotCreek_a", "T.T.3.1", "T.T.3.3", "B.N.3.2", "B.N.3.1", "B.N.9.2", "B.N.6.2", "B.N.9.1", "B.N.9.2.S")
+
+#IDK
+library(reshape2)
+Phylum$row <- seq_len(nrow(dat))
+dat2 <- melt(dat, id.vars = "row")
+
+barplot(as.matrix(Phylum))
+
+
+Phylum_plot <- ggplot (
+  Phylum, aes(x = Phylum$Species, y = Phylum$HotCreek_t, fill= Phylum$Phylum)) + 
+  geom_bar(stat = "identity", position = "fill")
+)
+
+
+ggplot(HotCreek_tadpolephylum, aes(x = HotCreek_tadpolephylum$Category, y = x)) + 
+  geom_bar(stat = "identity")
+
+```
+
+#Shannon Diversity Index
+```{r}
+diversity <- function (x, index = "shannon", MARGIN = 1, base = exp(1)) 
+      {
+      x <- drop(as.matrix(x))
+      if (any(x < 0, na.rm = TRUE))
+        stop("input data must be non-negative")
+      INDICES <- c("shannon", "simpson", "invsimpson")
+      index <- match.arg(index, INDICES)
+      if (length(dim(x)) > 1) {
+        total <- apply(x, MARGIN, sum)
+        x <- sweep(x, MARGIN, total, "/")
+        } else {
+          x <- x/(total <- sum(x))
+          }
+      if (index == "shannon")
+        x <- -x * log(x, base)
+      else
+        x <- x*x
+      if (length(dim(x)) > 1)
+        H <- apply(x, MARGIN, sum, na.rm = TRUE)
+      else
+        H <- sum(x, na.rm = TRUE)
+      if (index == "simpson")
+        H <- 1 - H
+      else if (index == "invsimpson")
+        H <- 1/H
+      if (any(NAS <- is.na(total)))
+        H[NAS] <- NA
+      H
+}
+
+diversity(OTU1.t, index="shannon", MARGIN=1, base=exp(1))
+
+#Create Plot
+shannonbat <- data.frame(Sample=c("Skate Park #1", "Skate Park #2", "Millard Canyon", "Switzer Falls #1", "Switzer Falls #2"), Diversity=c("3.214", "3.203", "4.800" ,"3.613", "3.630"), Location=c("1", "1", "2", "3", "3"))
+shannonbat$Sample <- factor(shannonbat$Sample, levels=c("Skate Park #1", "Skate Park #2", "Millard Canyon", "Switzer Falls #1", "Switzer Falls #2"))
+#shannonbat <- shannonbat[order(shannonbat$Number),]
+#head(shannonbat) view dataframe to see formatting
+shannotbatplot <- ggplot()+
+  geom_bar(data=shannonbat, aes(x=Sample, y=Diversity, fill=Sample), stat="identity")+
+  guides(fill=FALSE)+
+  scale_fill_manual(values = c("aquamarine", "aquamarine", "aquamarine3", "aquamarine4", "aquamarine4"))+
+  #labs(title="Shannon Diversity Index for Batrachoseps Samples")+
+  theme_classic()+
+  theme(text = element_text(size=18), legend.title = element_text(size=12, face="bold"), legend.text=element_text(size=10))
+shannotbatplot
+ggsave("~/Documents/Occidental College/Research Group/Second Round PCA/Shannon Bar Plot.jpg", height=6, width=9, dpi=1000, units="in")
+```
+
+```{r}
+OTU.results.num <- OTU.results[,1:11]
+
+
+OTU.results.sum = subset(OTU.results.num, TOTAL > 50)
+OTU.results.sum <- OTU.results.sum [complete.cases(OTU.results.sum),]
+OTU.results.sum <- OTU.results.sum[,-11]
+OTU.results.sum = as.matrix(OTU.results.sum)
+OTU.results.norm <- log(OTU.results.sum+1)
+OTU.results.norm [complete.cases(OTU.results.norm),]
+OTU.results.norm = as.matrix(OTU.results.norm)
+
+OTU.results.norm$Label <- row.names(OTU.results.norm)
+OTU.results.norm$Label[OTU.results.norm$Label == "HotCreek_tadpole"] <- "Unknown Juvi"
+OTU.results.norm$Label[OTU.results.norm$Label == "HotCreek_adult"] <- "Unknown Adult"
+OTU.results.norm$Label[OTU.results.norm$Label == "MB.BN.S.9.2"] <- "Skate Soil"
+OTU.results.norm$Label[OTU.results.norm$Label == "MB.TT3.1"] <- "Taricha #1"
+OTU.results.norm$Label[OTU.results.norm$Label == "MB.TT3.2"] <- "Taricha #2"
+OTU.results.norm$Label[OTU.results.norm$Label == "MB.BN3.1"] <- "Switzer #1"
+OTU.results.norm$Label[OTU.results.norm$Label == "MB.BN9.1"] <- "Skate #1"
+OTU.results.norm$Label[OTU.results.norm$Label == "MB.BN9.2"] <- "Skate #2"
+OTU.results.norm$Label[OTU.results.norm$Label == "MB.BN6.2"] <- "Millard"
+OTU.results.norm$Label[OTU.results.norm$Label == "MB.BN3.2"] <- "Switzer #2"
+
+OTU_heatmap <- heatmap(OTU.results.norm, Rowv = NA, col = cm.colors(256), scale="column", margins=c(8,12)) 
+```
+
+```{r}
+OTU.results.num.1 = as.matrix(OTU.results)
+OTU.HEATMAP <- heatmap(OTU.results.num.1, Rowv = Class, col = cm.colors(256), scale="none", margins=c(9,10))
+```
+
